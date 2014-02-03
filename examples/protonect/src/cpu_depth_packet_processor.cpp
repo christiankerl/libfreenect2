@@ -315,16 +315,18 @@ public:
   void processPixelStage1(int x, int y, unsigned char* data, float *m0_out, float *m1_out, float *m2_out)
   {
     int32_t m0_raw[3], m1_raw[3], m2_raw[3];
+    const int delta = 512*424;
+    int offset = (y < 212 ? y + 212 : 423 - y) * 512 + x;
 
-    m0_raw[0] = decodePixelMeasurement(data, 0, x, y);
-    m0_raw[1] = decodePixelMeasurement(data, 1, x, y);
-    m0_raw[2] = decodePixelMeasurement(data, 2, x, y);
-    m1_raw[0] = decodePixelMeasurement(data, 3, x, y);
-    m1_raw[1] = decodePixelMeasurement(data, 4, x, y);
-    m1_raw[2] = decodePixelMeasurement(data, 5, x, y);
-    m2_raw[0] = decodePixelMeasurement(data, 6, x, y);
-    m2_raw[1] = decodePixelMeasurement(data, 7, x, y);
-    m2_raw[2] = decodePixelMeasurement(data, 8, x, y);
+    m0_raw[0] = unpacked[offset]; offset += delta;
+    m0_raw[1] = unpacked[offset]; offset += delta;
+    m0_raw[2] = unpacked[offset]; offset += delta;
+    m1_raw[0] = unpacked[offset]; offset += delta;
+    m1_raw[1] = unpacked[offset]; offset += delta;
+    m1_raw[2] = unpacked[offset]; offset += delta;
+    m2_raw[0] = unpacked[offset]; offset += delta;
+    m2_raw[1] = unpacked[offset]; offset += delta;
+    m2_raw[2] = unpacked[offset]; offset += delta;
 
     processMeasurementTriple(p0_table0, ab_multiplier_per_frq0, x, y, m0_raw, m0_out);
     processMeasurementTriple(p0_table1, ab_multiplier_per_frq1, x, y, m1_raw, m1_out);
