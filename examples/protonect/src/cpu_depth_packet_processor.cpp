@@ -79,6 +79,7 @@ public:
   float individual_ab_threshold, ab_threshold, ab_confidence_slope, ab_confidence_offset;
   float min_dealias_confidence, max_dealias_confidence;
   int16_t lut11to16[2048];
+  int16_t unpacked[512*424*10];
 
   float joint_bilateral_ab_threshold;
   float joint_bilateral_exp;
@@ -157,8 +158,9 @@ public:
   }
 
   // Loop-unrolled version of the 11-to-16 bit unpacker (with table lookup). n must be a multiple of 8.
-  void convert_packed11_to_16bit(uint8_t *raw, uint16_t *frame, int n)
+  void convert_packed11_to_16bit(uint8_t *raw, int n)
   {
+    int16_t* frame = unpacked;
     uint16_t baseMask = (1 << 11) - 1;
     while(n >= 8)
     {
@@ -619,6 +621,8 @@ void CpuDepthPacketProcessor::process(const DepthPacket &packet)
   cv::Mat m = cv::Mat::zeros(424, 512, CV_32FC(9)), m_filtered = cv::Mat::zeros(424, 512, CV_32FC(9));
 
   float *m_ptr = m.ptr<float>();
+
+  impl_->convert_packed11_to_16bit(packet->buffer,512*424*10);
 
   for(int y = 0; y < 424; ++y)
     for(int x = 0; x < 512; ++x, m_ptr += 9)
