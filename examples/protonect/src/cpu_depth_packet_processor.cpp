@@ -643,7 +643,7 @@ void CpuDepthPacketProcessor::process(const DepthPacket &packet)
 
   float *m_ptr = m.ptr<float>();
 
-  impl_->convert_packed11_to_16bit((uint16_t*)(packet->buffer),512*424*10);
+  impl_->convert_packed11_to_16bit((uint16_t*)(packet.buffer),512*424*10);
 
   for(int y = 0; y < 424; ++y)
     for(int x = 0; x < 512; ++x, m_ptr += 9)
