@@ -182,19 +182,19 @@ public:
           uint16_t r9  = *(raw+9);
           uint16_t r10 = *(raw+10);
 
-          frame[ 0] = lut11to16[ ((r0>> 0) | (r1<<16)) & baseMask ];
+          frame[ 0] = lut11to16[ ((r0>> 0)           ) & baseMask ];
           frame[ 4] = lut11to16[ ((r0>>11) | (r1<< 5)) & baseMask ];
           frame[ 8] = lut11to16[ ((r1>> 6) | (r2<<10)) & baseMask ];
-          frame[12] = lut11to16[ ((r2>> 1) | (r3<<15)) & baseMask ];
+          frame[12] = lut11to16[ ((r2>> 1)           ) & baseMask ];
           frame[16] = lut11to16[ ((r2>>12) | (r3<< 4)) & baseMask ];
           frame[20] = lut11to16[ ((r3>> 7) | (r4<< 9)) & baseMask ];
-          frame[24] = lut11to16[ ((r4>> 2) | (r5<<14)) & baseMask ];
+          frame[24] = lut11to16[ ((r4>> 2)           ) & baseMask ];
           frame[28] = lut11to16[ ((r4>>13) | (r5<< 3)) & baseMask ];
           frame[32] = lut11to16[ ((r5>> 8) | (r6<< 8)) & baseMask ];
-          frame[36] = lut11to16[ ((r6>> 3) | (r7<<13)) & baseMask ];
+          frame[36] = lut11to16[ ((r6>> 3)           ) & baseMask ];
           frame[40] = lut11to16[ ((r6>>14) | (r7<< 2)) & baseMask ];
           frame[44] = lut11to16[ ((r7>> 9) | (r8<< 7)) & baseMask ];
-          frame[48] = lut11to16[ ((r8>> 4) | (r9<<12)) & baseMask ];
+          frame[48] = lut11to16[ ((r8>> 4)           ) & baseMask ];
           frame[52] = lut11to16[ ((r8>>15) | (r9<< 1)) & baseMask ];
           frame[56] = lut11to16[ ((r9>>10) | (r10<<6)) & baseMask ];
           frame[60] = lut11to16[ ((r10>>5)           ) & baseMask ];
@@ -206,6 +206,7 @@ public:
         frame += 64-4;   // advance frame pointer to the start of next 64 pixel block
         raw -= (352-11); // reset raw data pointer into the first "stripe"
       }
+      raw += 264;
     }
   }
 
