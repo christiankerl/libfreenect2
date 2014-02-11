@@ -24,48 +24,64 @@
  * either License.
  */
 
-#ifndef DEPTH_PACKET_STREAM_PARSER_H_
-#define DEPTH_PACKET_STREAM_PARSER_H_
+#ifndef FRAME_LISTENER_H_
+#define FRAME_LISTENER_H_
 
-#include <stddef.h>
-#include <stdint.h>
-
-#include <libfreenect2/double_buffer.h>
-#include <libfreenect2/depth_packet_processor.h>
-#include <libfreenect2/async_packet_processor.h>
-
-#include <libfreenect2/usb/transfer_pool.h>
+#include <map>
+#include <boost/thread.hpp>
 
 namespace libfreenect2
 {
 
-struct DepthSubPacketFooter
+struct Frame
 {
-  uint32_t magic0;
-  uint32_t magic1;
-  uint32_t timestamp;
-  uint32_t sequence;
-  uint32_t subsequence;
-  uint32_t length;
-  uint32_t fields[32];
+  enum Type
+  {
+    Color = 1,
+    Ir = 2,
+    Depth = 4
+  };
+
+  size_t width, height, bytes_per_pixel;
+  unsigned char* data;
+
+  Frame(size_t width, size_t height, size_t bytes_per_pixel) :
+    width(width),
+    height(height),
+    bytes_per_pixel(bytes_per_pixel)
+  {
+    data = new unsigned char[width * height * bytes_per_pixel];
+  }
+
+  ~Frame()
+  {
+    delete[] data;
+  }
 };
 
-class DepthPacketStreamParser : public libfreenect2::usb::TransferPool::DataReceivedCallback
+typedef std::map<Frame::Type, Frame*> FrameMap;
+
+// TODO: reimplement, this is just some adhoc construct, probably performance can be improved
+class FrameListener
 {
 public:
-  DepthPacketStreamParser(libfreenect2::DepthPacketProcessor *processor);
-  virtual ~DepthPacketStreamParser();
+  FrameListener(unsigned int frame_types);
+  virtual ~FrameListener();
 
-  virtual void onDataReceived(unsigned char* buffer, size_t length);
+  // for now the caller is responsible to release the frames when he is done
+  void waitForNewFrame(FrameMap &frame);
+
+  void release(FrameMap &frame);
+
+  bool addNewFrame(Frame::Type type, Frame *frame);
 private:
-  libfreenect2::AsyncPacketProcessor<libfreenect2::DepthPacket, libfreenect2::DepthPacketProcessor> processor_;
+  boost::mutex mutex_;
+  boost::condition_variable condition_;
+  FrameMap next_frame_;
 
-  libfreenect2::DoubleBuffer buffer_;
-  libfreenect2::Buffer work_buffer_;
-
-  uint32_t current_sequence_;
-  uint32_t current_subsequence_;
+  const unsigned int subscribed_frame_types_;
+  unsigned int ready_frame_types_;
 };
 
 } /* namespace libfreenect2 */
-#endif /* DEPTH_PACKET_STREAM_PARSER_H_ */
+#endif /* FRAME_LISTENER_H_ */

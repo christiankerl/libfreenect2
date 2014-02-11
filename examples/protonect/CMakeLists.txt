@@ -22,8 +22,8 @@ INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIR})
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
 # LibUSB
-INCLUDE_DIRECTORIES("${MY_DIR}/../../libusb/include/libusb-1.0/")
-LINK_DIRECTORIES("${MY_DIR}/../../libusb/lib/")
+INCLUDE_DIRECTORIES("${MY_DIR}/../../depends/libusbx/include/libusb-1.0/")
+LINK_DIRECTORIES("${MY_DIR}/../../depends/libusbx/lib/")
 
 INCLUDE_DIRECTORIES("${MY_DIR}/include")
 
@@ -32,12 +32,14 @@ ADD_EXECUTABLE(Protonect
   src/event_loop.cpp
   
   src/double_buffer.cpp
+  src/frame_listener.cpp
   
   src/rgb_packet_stream_parser.cpp
   src/rgb_packet_processor.cpp
   src/turbo_jpeg_rgb_packet_processor.cpp
   
   src/depth_packet_stream_parser.cpp
+  src/depth_packet_processor.cpp
   src/cpu_depth_packet_processor.cpp
   
   Protonect.cpp

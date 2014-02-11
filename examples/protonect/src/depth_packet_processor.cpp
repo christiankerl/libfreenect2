@@ -24,48 +24,24 @@
  * either License.
  */
 
-#ifndef DEPTH_PACKET_STREAM_PARSER_H_
-#define DEPTH_PACKET_STREAM_PARSER_H_
-
-#include <stddef.h>
-#include <stdint.h>
-
-#include <libfreenect2/double_buffer.h>
 #include <libfreenect2/depth_packet_processor.h>
-#include <libfreenect2/async_packet_processor.h>
-
-#include <libfreenect2/usb/transfer_pool.h>
 
 namespace libfreenect2
 {
 
-struct DepthSubPacketFooter
+DepthPacketProcessor::DepthPacketProcessor() :
+    listener_(0)
 {
-  uint32_t magic0;
-  uint32_t magic1;
-  uint32_t timestamp;
-  uint32_t sequence;
-  uint32_t subsequence;
-  uint32_t length;
-  uint32_t fields[32];
-};
+}
 
-class DepthPacketStreamParser : public libfreenect2::usb::TransferPool::DataReceivedCallback
+DepthPacketProcessor::~DepthPacketProcessor()
 {
-public:
-  DepthPacketStreamParser(libfreenect2::DepthPacketProcessor *processor);
-  virtual ~DepthPacketStreamParser();
+}
 
-  virtual void onDataReceived(unsigned char* buffer, size_t length);
-private:
-  libfreenect2::AsyncPacketProcessor<libfreenect2::DepthPacket, libfreenect2::DepthPacketProcessor> processor_;
+void DepthPacketProcessor::setFrameListener(libfreenect2::FrameListener *listener)
+{
+  listener_ = listener;
+}
 
-  libfreenect2::DoubleBuffer buffer_;
-  libfreenect2::Buffer work_buffer_;
-
-  uint32_t current_sequence_;
-  uint32_t current_subsequence_;
-};
 
 } /* namespace libfreenect2 */
-#endif /* DEPTH_PACKET_STREAM_PARSER_H_ */

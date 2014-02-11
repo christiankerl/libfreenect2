@@ -38,6 +38,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include <opencv2/opencv.hpp>
+
 #include <boost/bind.hpp>
 
 #include <libfreenect2/tables.h>
@@ -46,6 +48,7 @@
 #include <libfreenect2/rgb_packet_stream_parser.h>
 #include <libfreenect2/rgb_packet_processor.h>
 #include <libfreenect2/depth_packet_stream_parser.h>
+#include <libfreenect2/frame_listener.h>
 
 bool should_resubmit = true;
 uint32_t num_iso_requests_outstanding = 0;
@@ -720,16 +723,21 @@ int main(int argc, char *argv[])
   libfreenect2::usb::EventLoop usb_loop;
   usb_loop.start();
 
-  libfreenect2::DumpRgbPacketProcessor rgb_processor;
-  //libfreenect2::TurboJpegRgbPacketProcessor rgb_processor;
+  libfreenect2::FrameMap frames;
+  libfreenect2::FrameListener frame_listener(libfreenect2::Frame::Color | libfreenect2::Frame::Ir | libfreenect2::Frame::Depth);
+
+  //libfreenect2::DumpRgbPacketProcessor rgb_processor;
+  libfreenect2::TurboJpegRgbPacketProcessor rgb_processor;
+  rgb_processor.setFrameListener(&frame_listener);
   libfreenect2::RgbPacketStreamParser rgb_packet_stream_parser(&rgb_processor);
 
   libfreenect2::usb::BulkTransferPool rgb_bulk_transfers(handle, 0x83);
   rgb_bulk_transfers.allocate(50, 0x4000);
-  rgb_bulk_transfers.onDataReceived.connect(boost::bind(&libfreenect2::RgbPacketStreamParser::handleNewData, &rgb_packet_stream_parser, _1, _2));
+  rgb_bulk_transfers.setCallback(&rgb_packet_stream_parser);
   rgb_bulk_transfers.enableSubmission();
 
   libfreenect2::CpuDepthPacketProcessor depth_processor;
+  depth_processor.setFrameListener(&frame_listener);
   depth_processor.load11To16LutFromFile((binpath + "../11to16.bin").c_str());
   depth_processor.loadXTableFromFile((binpath + "../xTable.bin").c_str());
   depth_processor.loadZTableFromFile((binpath + "../zTable.bin").c_str());
@@ -741,7 +749,7 @@ int main(int argc, char *argv[])
 
   libfreenect2::usb::IsoTransferPool depth_iso_transfers(handle, 0x84);
   depth_iso_transfers.allocate(80, 8, max_packet_size);
-  depth_iso_transfers.onDataReceived.connect(boost::bind(&libfreenect2::DepthPacketStreamParser::handleNewData, &depth_packet_stream_parser, _1, _2));
+  depth_iso_transfers.setCallback(&depth_packet_stream_parser);
   depth_iso_transfers.enableSubmission();
 
   r = libusb_get_device_speed(dev);
@@ -759,7 +767,21 @@ int main(int argc, char *argv[])
     r = 0;
   printf("             speed: %s\n", speed_name[r]);
 
-  while(!shutdown) { boost::this_thread::sleep(boost::posix_time::milliseconds(100)); }
+  while(!shutdown)
+  {
+    frame_listener.waitForNewFrame(frames);
+
+    libfreenect2::Frame *rgb = frames[libfreenect2::Frame::Color];
+    libfreenect2::Frame *ir = frames[libfreenect2::Frame::Ir];
+    libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
+
+    cv::imshow("rgb", cv::Mat(rgb->height, rgb->width, CV_8UC3, rgb->data));
+    cv::imshow("ir", cv::Mat(ir->height, ir->width, CV_32FC1, ir->data) / 20000.0f);
+    cv::imshow("depth", cv::Mat(depth->height, depth->width, CV_32FC1, depth->data) / 4500.0f);
+    cv::waitKey(1);
+
+    frame_listener.release(frames);
+  }
 
   r = libusb_get_device_speed(dev);
   if ((r < 0) || (r > 4))
