@@ -160,56 +160,67 @@ public:
     }
   }
 
-  // optimized version of the 11-to-16 bit unpacker. pixel count (n) must be a multiple of 512
-  void convert_packed11_to_16bit(uint16_t *raw, int n)
+  // optimized version of the 11-to-16 bit unpacker. unpacks/deinterlaces/un-mirrors 10 frames.
+  void convert_packed11_to_16bit(uint16_t* input)
   {
     int16_t* frame = unpacked;
     const uint16_t baseMask = (1 << 11) - 1;
-    while(n >= 512)
+
+    // unpack 10 separate frames
+    for (int f = 0; f < 10; f++)
     {
-      // this loop completes one pixel row (8 blocks * 64 pixels = 512 pixels)
-      for (int k = 0; k < 8; k++)
+      uint16_t* rawframe = input + ((512*424*11/8) * f);
+
+      // unpack & un-mirror one single frame
+      for (int y = 0; y < 424; y++)
       {
-        // this loop converts & deinterlaces one contiguous block of 64 pixels
-        for (int i = 0; i < 4; i++)
+        int ty = y < 212 ? y + 212 : 423 - y;
+        uint16_t* raw = rawframe + (352*ty);
+
+        // this loop completes one pixel row (8 blocks * 64 pixels = 512 pixels)
+        for (int k = 0; k < 8; k++)
         {
-          uint16_t r0  = *(raw+0);
-          uint16_t r1  = *(raw+1);
-          uint16_t r2  = *(raw+2);
-          uint16_t r3  = *(raw+3);
-          uint16_t r4  = *(raw+4);
-          uint16_t r5  = *(raw+5);
-          uint16_t r6  = *(raw+6);
-          uint16_t r7  = *(raw+7);
-          uint16_t r8  = *(raw+8);
-          uint16_t r9  = *(raw+9);
-          uint16_t r10 = *(raw+10);
+          // this loop converts & deinterlaces one contiguous block of 64 pixels
+          for (int i = 0; i < 4; i++)
+          {
+            uint16_t r0  = *(raw+0);
+            uint16_t r1  = *(raw+1);
+            uint16_t r2  = *(raw+2);
+            uint16_t r3  = *(raw+3);
+            uint16_t r4  = *(raw+4);
+            uint16_t r5  = *(raw+5);
+            uint16_t r6  = *(raw+6);
+            uint16_t r7  = *(raw+7);
+            uint16_t r8  = *(raw+8);
+            uint16_t r9  = *(raw+9);
+            uint16_t r10 = *(raw+10);
 
-          frame[ 0] = lut11to16[ ((r0>> 0)           ) & baseMask ];
-          frame[ 4] = lut11to16[ ((r0>>11) | (r1<< 5)) & baseMask ];
-          frame[ 8] = lut11to16[ ((r1>> 6) | (r2<<10)) & baseMask ];
-          frame[12] = lut11to16[ ((r2>> 1)           ) & baseMask ];
-          frame[16] = lut11to16[ ((r2>>12) | (r3<< 4)) & baseMask ];
-          frame[20] = lut11to16[ ((r3>> 7) | (r4<< 9)) & baseMask ];
-          frame[24] = lut11to16[ ((r4>> 2)           ) & baseMask ];
-          frame[28] = lut11to16[ ((r4>>13) | (r5<< 3)) & baseMask ];
-          frame[32] = lut11to16[ ((r5>> 8) | (r6<< 8)) & baseMask ];
-          frame[36] = lut11to16[ ((r6>> 3)           ) & baseMask ];
-          frame[40] = lut11to16[ ((r6>>14) | (r7<< 2)) & baseMask ];
-          frame[44] = lut11to16[ ((r7>> 9) | (r8<< 7)) & baseMask ];
-          frame[48] = lut11to16[ ((r8>> 4)           ) & baseMask ];
-          frame[52] = lut11to16[ ((r8>>15) | (r9<< 1)) & baseMask ];
-          frame[56] = lut11to16[ ((r9>>10) | (r10<<6)) & baseMask ];
-          frame[60] = lut11to16[ ((r10>>5)           ) & baseMask ];
+            frame[ 0] = lut11to16[ ((r0>> 0)           ) & baseMask ];
+            frame[ 4] = lut11to16[ ((r0>>11) | (r1<< 5)) & baseMask ];
+            frame[ 8] = lut11to16[ ((r1>> 6) | (r2<<10)) & baseMask ];
+            frame[12] = lut11to16[ ((r2>> 1)           ) & baseMask ];
+            frame[16] = lut11to16[ ((r2>>12) | (r3<< 4)) & baseMask ];
+            frame[20] = lut11to16[ ((r3>> 7) | (r4<< 9)) & baseMask ];
+            frame[24] = lut11to16[ ((r4>> 2)           ) & baseMask ];
+            frame[28] = lut11to16[ ((r4>>13) | (r5<< 3)) & baseMask ];
+            frame[32] = lut11to16[ ((r5>> 8) | (r6<< 8)) & baseMask ];
+            frame[36] = lut11to16[ ((r6>> 3)           ) & baseMask ];
+            frame[40] = lut11to16[ ((r6>>14) | (r7<< 2)) & baseMask ];
+            frame[44] = lut11to16[ ((r7>> 9) | (r8<< 7)) & baseMask ];
+            frame[48] = lut11to16[ ((r8>> 4)           ) & baseMask ];
+            frame[52] = lut11to16[ ((r8>>15) | (r9<< 1)) & baseMask ];
+            frame[56] = lut11to16[ ((r9>>10) | (r10<<6)) & baseMask ];
+            frame[60] = lut11to16[ ((r10>>5)           ) & baseMask ];
 
-          n -= 16;
-          raw += 88;
-          frame++;
+            //n -= 16;
+            raw += 88;
+            frame++;
+          }
+          frame += 64-4;   // advance frame pointer to the start of next 64 pixel block
+          raw -= (352-11); // reset raw data pointer into the first "stripe"
         }
-        frame += 64-4;   // advance frame pointer to the start of next 64 pixel block
-        raw -= (352-11); // reset raw data pointer into the first "stripe"
+        //raw += 264;
       }
-      raw += 264;
     }
   }
 
@@ -363,7 +374,7 @@ public:
   {
     int32_t m0_raw[3], m1_raw[3], m2_raw[3];
     const int delta = 512*424;
-    int offset = (y < 212 ? y + 212 : 423 - y) * 512 + x;
+    int offset = y * 512 + x;
 
     m0_raw[0] = unpacked[offset]; offset += delta;
     m0_raw[1] = unpacked[offset]; offset += delta;
@@ -677,7 +688,7 @@ void CpuDepthPacketProcessor::process(const DepthPacket &packet)
 
   float *m_ptr = m.ptr<float>();
 
-  impl_->convert_packed11_to_16bit((uint16_t*)(packet.buffer),512*424*10);
+  impl_->convert_packed11_to_16bit((uint16_t*)(packet.buffer));
 
   for(int y = 0; y < 424; ++y)
     for(int x = 0; x < 512; ++x, m_ptr += 9)
