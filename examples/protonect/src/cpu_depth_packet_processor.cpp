@@ -79,6 +79,7 @@ public:
   float individual_ab_threshold, ab_threshold, ab_confidence_slope, ab_confidence_offset;
   float min_dealias_confidence, max_dealias_confidence;
   int16_t lut11to16[2048];
+  int16_t unpacked[512*424*10];
 
   float joint_bilateral_ab_threshold;
   float joint_bilateral_exp;
@@ -156,6 +157,70 @@ public:
       std::cout << "[CpuDepthPacketProcessor] avg. time: " << (avg * 1000) << "ms -> ~" << (1.0/avg) << "Hz" << std::endl;
       timing_acc = 0.0;
       timing_acc_n = 0.0;
+    }
+  }
+
+  // optimized version of the 11-to-16 bit unpacker. unpacks/deinterlaces/un-mirrors 10 frames.
+  void convert_packed11_to_16bit(uint16_t* input)
+  {
+    int16_t* frame = unpacked;
+    const uint16_t baseMask = (1 << 11) - 1;
+
+    // unpack 10 separate frames
+    for (int f = 0; f < 10; f++)
+    {
+      uint16_t* rawframe = input + ((512*424*11/8) * f);
+
+      // unpack & un-mirror one single frame
+      for (int y = 0; y < 424; y++)
+      {
+        int ty = y < 212 ? y + 212 : 423 - y;
+        uint16_t* raw = rawframe + (352*ty);
+
+        // this loop completes one pixel row (8 blocks * 64 pixels = 512 pixels)
+        for (int k = 0; k < 8; k++)
+        {
+          // this loop converts & deinterlaces one contiguous block of 64 pixels
+          for (int i = 0; i < 4; i++)
+          {
+            uint16_t r0  = *(raw+0);
+            uint16_t r1  = *(raw+1);
+            uint16_t r2  = *(raw+2);
+            uint16_t r3  = *(raw+3);
+            uint16_t r4  = *(raw+4);
+            uint16_t r5  = *(raw+5);
+            uint16_t r6  = *(raw+6);
+            uint16_t r7  = *(raw+7);
+            uint16_t r8  = *(raw+8);
+            uint16_t r9  = *(raw+9);
+            uint16_t r10 = *(raw+10);
+
+            frame[ 0] = lut11to16[ ((r0>> 0)           ) & baseMask ];
+            frame[ 4] = lut11to16[ ((r0>>11) | (r1<< 5)) & baseMask ];
+            frame[ 8] = lut11to16[ ((r1>> 6) | (r2<<10)) & baseMask ];
+            frame[12] = lut11to16[ ((r2>> 1)           ) & baseMask ];
+            frame[16] = lut11to16[ ((r2>>12) | (r3<< 4)) & baseMask ];
+            frame[20] = lut11to16[ ((r3>> 7) | (r4<< 9)) & baseMask ];
+            frame[24] = lut11to16[ ((r4>> 2)           ) & baseMask ];
+            frame[28] = lut11to16[ ((r4>>13) | (r5<< 3)) & baseMask ];
+            frame[32] = lut11to16[ ((r5>> 8) | (r6<< 8)) & baseMask ];
+            frame[36] = lut11to16[ ((r6>> 3)           ) & baseMask ];
+            frame[40] = lut11to16[ ((r6>>14) | (r7<< 2)) & baseMask ];
+            frame[44] = lut11to16[ ((r7>> 9) | (r8<< 7)) & baseMask ];
+            frame[48] = lut11to16[ ((r8>> 4)           ) & baseMask ];
+            frame[52] = lut11to16[ ((r8>>15) | (r9<< 1)) & baseMask ];
+            frame[56] = lut11to16[ ((r9>>10) | (r10<<6)) & baseMask ];
+            frame[60] = lut11to16[ ((r10>>5)           ) & baseMask ];
+
+            //n -= 16;
+            raw += 88;
+            frame++;
+          }
+          frame += 64-4;   // advance frame pointer to the start of next 64 pixel block
+          raw -= (352-11); // reset raw data pointer into the first "stripe"
+        }
+        //raw += 264;
+      }
     }
   }
 
@@ -308,16 +373,18 @@ public:
   void processPixelStage1(int x, int y, unsigned char* data, float *m0_out, float *m1_out, float *m2_out)
   {
     int32_t m0_raw[3], m1_raw[3], m2_raw[3];
+    const int delta = 512*424;
+    int offset = y * 512 + x;
 
-    m0_raw[0] = decodePixelMeasurement(data, 0, x, y);
-    m0_raw[1] = decodePixelMeasurement(data, 1, x, y);
-    m0_raw[2] = decodePixelMeasurement(data, 2, x, y);
-    m1_raw[0] = decodePixelMeasurement(data, 3, x, y);
-    m1_raw[1] = decodePixelMeasurement(data, 4, x, y);
-    m1_raw[2] = decodePixelMeasurement(data, 5, x, y);
-    m2_raw[0] = decodePixelMeasurement(data, 6, x, y);
-    m2_raw[1] = decodePixelMeasurement(data, 7, x, y);
-    m2_raw[2] = decodePixelMeasurement(data, 8, x, y);
+    m0_raw[0] = unpacked[offset]; offset += delta;
+    m0_raw[1] = unpacked[offset]; offset += delta;
+    m0_raw[2] = unpacked[offset]; offset += delta;
+    m1_raw[0] = unpacked[offset]; offset += delta;
+    m1_raw[1] = unpacked[offset]; offset += delta;
+    m1_raw[2] = unpacked[offset]; offset += delta;
+    m2_raw[0] = unpacked[offset]; offset += delta;
+    m2_raw[1] = unpacked[offset]; offset += delta;
+    m2_raw[2] = unpacked[offset]; offset += delta;
 
     processMeasurementTriple(trig_table0, ab_multiplier_per_frq0, x, y, m0_raw, m0_out);
     processMeasurementTriple(trig_table1, ab_multiplier_per_frq1, x, y, m1_raw, m1_out);
@@ -620,6 +687,8 @@ void CpuDepthPacketProcessor::process(const DepthPacket &packet)
   cv::Mat m = cv::Mat::zeros(424, 512, CV_32FC(9)), m_filtered = cv::Mat::zeros(424, 512, CV_32FC(9));
 
   float *m_ptr = m.ptr<float>();
+
+  impl_->convert_packed11_to_16bit((uint16_t*)(packet.buffer));
 
   for(int y = 0; y < 424; ++y)
     for(int x = 0; x < 512; ++x, m_ptr += 9)
