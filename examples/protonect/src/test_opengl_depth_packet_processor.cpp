@@ -47,7 +47,7 @@ void loadBufferFromFile(const std::string& filename, unsigned char *buffer, size
 
 int main(int argc, char **argv) {
   std::string program_path(argv[0]);
-  size_t executable_name_idx = program_path.rfind("test_opengl");
+  size_t executable_name_idx = program_path.rfind("test_opengl_depth_packet_processor");
   std::string binpath = "./";
 
   if(executable_name_idx != std::string::npos)
