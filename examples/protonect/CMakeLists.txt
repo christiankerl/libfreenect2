@@ -105,7 +105,7 @@ TARGET_LINK_LIBRARIES(freenect2
   ${GLFW_LIBRARIES}
 )
 
-ADD_EXECUTABLE(test_opengl
+ADD_EXECUTABLE(test_opengl_depth_packet_processor
   src/test_opengl_depth_packet_processor.cpp
 )
 
