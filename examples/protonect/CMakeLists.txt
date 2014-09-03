@@ -105,11 +105,11 @@ TARGET_LINK_LIBRARIES(freenect2
   ${GLFW_LIBRARIES}
 )
 
-ADD_EXECUTABLE(test_opengl
-  src/test_opengl.cpp
+ADD_EXECUTABLE(test_opengl_texture_formats
+  src/test_opengl_texture_formats.cpp
 )
  
-TARGET_LINK_LIBRARIES(test_opengl
+TARGET_LINK_LIBRARIES(test_opengl_texture_formats
   freenect2
 )
 
