@@ -65,6 +65,31 @@ bool loadBufferFromFile(const std::string& filename, unsigned char *buffer, size
   return success;
 }
 
+bool checkOpenGLError(const std::string &message)
+{
+  // based on code from http://blog.nobel-joergensen.com/2013/01/29/debugging-opengl-using-glgeterror/
+  GLenum err(glGetError());
+  bool no_error = true;
+
+  while(err != GL_NO_ERROR)
+  {
+    no_error = false;
+    std::string error;
+
+    switch(err)
+    {
+      case GL_INVALID_OPERATION:      error="INVALID_OPERATION";      break;
+      case GL_INVALID_ENUM:           error="INVALID_ENUM";           break;
+      case GL_INVALID_VALUE:          error="INVALID_VALUE";          break;
+    }
+
+    std::cerr << "GL_" << error << ": " << message << std::endl;
+    err = glGetError();
+  }
+
+  return no_error;
+}
+
 struct ShaderProgram
 {
   GLuint program, vertex_shader, fragment_shader;
@@ -211,13 +236,18 @@ public:
   {
   }
 
-  void bindToUnit(GLenum unit)
+  bool bindToUnit(GLenum unit)
   {
     glActiveTexture(unit);
+    if(!checkOpenGLError("Texture::bindToUnit() glActiveTexture()")) return false;
+
     glBindTexture(GL_TEXTURE_RECTANGLE, texture);
+    if(!checkOpenGLError("Texture::bindToUnit() glBindTexture()")) return false;
+
+    return true;
   }
 
-  void allocate(size_t new_width, size_t new_height)
+  bool allocate(size_t new_width, size_t new_height)
   {
     width = new_width;
     height = new_height;
@@ -225,16 +255,30 @@ public:
     data = new unsigned char[size];
 
     glGenTextures(1, &texture);
-    bindToUnit(GL_TEXTURE0);
+    if(!checkOpenGLError("Texture::allocate() glGenTextures()")) return false;
+
+    if(!bindToUnit(GL_TEXTURE0)) return false;
+
     glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    if(!checkOpenGLError("Texture::allocate() glTexParameteri()")) return false;
+
     glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    if(!checkOpenGLError("Texture::allocate() glTexParameteri()")) return false;
+
     glTexImage2D(GL_TEXTURE_RECTANGLE, 0, FormatT::InternalFormat, width, height, 0, FormatT::Format, FormatT::Type, 0);
+    if(!checkOpenGLError("Texture::allocate() glTexImage2D()")) return false;
+
+    return true;
   }
 
-  void upload()
+  bool upload()
   {
-    bindToUnit(GL_TEXTURE0);
+    if(!bindToUnit(GL_TEXTURE0)) return false;
+
     glTexSubImage2D(GL_TEXTURE_RECTANGLE, /*level*/0, /*xoffset*/0, /*yoffset*/0, width, height, FormatT::Format, FormatT::Type, data);
+    if(!checkOpenGLError("Texture::upload() glTexSubImage2D()")) return false;
+
+    return true;
   }
 
   void download()
@@ -371,26 +415,73 @@ struct OpenGLDepthPacketProcessorImpl
   {
     ChangeCurrentOpenGLContext ctx(*opengl_context_ptr);
 
-    input_data.allocate(352, 424 * 10);
+    checkOpenGLError("this error occurred during OpenGL setup - ignore it for now");
+
+    if(!input_data.allocate(352, 424 * 10))
+    {
+      std::cerr << "[OpenGLDepthPacketProcessor::initialize] failed to allocate texture for input_data!" << std::endl;
+    }
 
     for(int i = 0; i < 3; ++i)
-      stage1_data[i].allocate(512, 424);
+    {
+      if(!stage1_data[i].allocate(512, 424))
+      {
+        std::cerr << "[OpenGLDepthPacketProcessor::initialize] failed to allocate texture for stage1_data[" << i << "]!" << std::endl;
+      }
+    }
 
-    if(do_debug) stage1_debug.allocate(512, 424);
-    stage1_infrared.allocate(512, 424);
+    if(do_debug && !stage1_debug.allocate(512, 424))
+    {
+      std::cerr << "[OpenGLDepthPacketProcessor::initialize] failed to allocate texture for stage1_debug!" << std::endl;
+    }
+
+    if(!stage1_infrared.allocate(512, 424))
+    {
+      std::cerr << "[OpenGLDepthPacketProcessor::initialize] failed to allocate texture for stage1_infrared!" << std::endl;
+    }
 
     for(int i = 0; i < 2; ++i)
-      filter1_data[i].allocate(512, 424);
+    {
+      if(!filter1_data[i].allocate(512, 424))
+      {
+        std::cerr << "[OpenGLDepthPacketProcessor::initialize] failed to allocate texture for filter1_data[" << i << "]!" << std::endl;
+      }
+    }
 
-    filter1_max_edge_test.allocate(512, 424);
-    if(do_debug) filter1_debug.allocate(512, 424);
+    if(!filter1_max_edge_test.allocate(512, 424))
+    {
+      std::cerr << "[OpenGLDepthPacketProcessor::initialize] failed to allocate texture for filter1_max_edge_test!" << std::endl;
+    }
 
-    if(do_debug) stage2_debug.allocate(512, 424);
-    stage2_depth.allocate(512, 424);
-    stage2_depth_and_ir_sum.allocate(512, 424);
+    if(do_debug && !filter1_debug.allocate(512, 424))
+    {
+      std::cerr << "[OpenGLDepthPacketProcessor::initialize] failed to allocate texture for filter1_debug!" << std::endl;
+    }
 
-    if(do_debug) filter2_debug.allocate(512, 424);
-    filter2_depth.allocate(512, 424);
+    if(do_debug && !stage2_debug.allocate(512, 424))
+    {
+      std::cerr << "[OpenGLDepthPacketProcessor::initialize] failed to allocate texture for stage2_debug!" << std::endl;
+    }
+
+    if(!stage2_depth.allocate(512, 424))
+    {
+      std::cerr << "[OpenGLDepthPacketProcessor::initialize] failed to allocate texture for stage2_depth!" << std::endl;
+    }
+
+    if(!stage2_depth_and_ir_sum.allocate(512, 424))
+    {
+      std::cerr << "[OpenGLDepthPacketProcessor::initialize] failed to allocate texture for stage2_depth_and_ir_sum!" << std::endl;
+    }
+
+    if(do_debug && !filter2_debug.allocate(512, 424))
+    {
+      std::cerr << "[OpenGLDepthPacketProcessor::initialize] failed to allocate texture for filter2_debug!" << std::endl;
+    }
+
+    if(!filter2_depth.allocate(512, 424))
+    {
+      std::cerr << "[OpenGLDepthPacketProcessor::initialize] failed to allocate texture for filter2_depth!" << std::endl;
+    }
 
     stage1.setVertexShader(loadShaderSource(shader_folder + "default.vs"));
     stage1.setFragmentShader(loadShaderSource(shader_folder + "stage1.fs"));
@@ -477,6 +568,8 @@ struct OpenGLDepthPacketProcessorImpl
     GLint texcoord_attr = stage1.getAttributeLocation("TexCoord");
     glVertexAttribPointer(texcoord_attr, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)(2 * sizeof(float)));
     glEnableVertexAttribArray(texcoord_attr);
+
+    checkOpenGLError("OpenGL error somewhere in OpenGLDepthPacketProcessorImpl::initialize(), which is not related to texture allocation!");
   }
 
   void deinitialize()
@@ -517,6 +610,8 @@ struct OpenGLDepthPacketProcessorImpl
 
     program.setUniform("Params.min_depth", params.min_depth);
     program.setUniform("Params.max_depth", params.max_depth);
+
+    checkOpenGLError("OpenGL error in OpenGLDepthPacketProcessorImpl::updateShaderParametersForProgram()");
   }
 
   void run(Frame **ir, Frame **depth)
@@ -659,6 +754,7 @@ struct OpenGLDepthPacketProcessorImpl
     }
 
     params_need_update = false;
+    checkOpenGLError("OpenGL error somewhere in OpenGLDepthPacketProcessorImpl::run()");
   }
 };
 
@@ -706,20 +802,38 @@ void OpenGLDepthPacketProcessor::loadP0TablesFromCommandResponse(unsigned char* 
   size_t n = 512 * 424;
   libfreenect2::protocol::P0TablesResponse* p0table = (libfreenect2::protocol::P0TablesResponse*)buffer;
 
-  impl_->p0table[0].allocate(512, 424);
+  if(!impl_->p0table[0].allocate(512, 424))
+  {
+    std::cerr << "[OpenGLDepthPacketProcessor::loadP0TablesFromCommandResponse] Failed to allocate p0table[0]!" << std::endl;
+  }
   std::copy(reinterpret_cast<unsigned char*>(p0table->p0table0), reinterpret_cast<unsigned char*>(p0table->p0table0 + n), impl_->p0table[0].data);
   impl_->p0table[0].flipY();
-  impl_->p0table[0].upload();
+  if(!impl_->p0table[0].upload())
+  {
+    std::cerr << "[OpenGLDepthPacketProcessor::loadP0TablesFromCommandResponse] Failed to upload p0table[0]!" << std::endl;
+  }
 
-  impl_->p0table[1].allocate(512, 424);
+  if(!impl_->p0table[1].allocate(512, 424))
+  {
+    std::cerr << "[OpenGLDepthPacketProcessor::loadP0TablesFromCommandResponse] Failed to allocate p0table[1]!" << std::endl;
+  }
   std::copy(reinterpret_cast<unsigned char*>(p0table->p0table1), reinterpret_cast<unsigned char*>(p0table->p0table1 + n), impl_->p0table[1].data);
   impl_->p0table[1].flipY();
-  impl_->p0table[1].upload();
+  if(!impl_->p0table[1].upload())
+  {
+    std::cerr << "[OpenGLDepthPacketProcessor::loadP0TablesFromCommandResponse] Failed to upload p0table[1]!" << std::endl;
+  }
 
-  impl_->p0table[2].allocate(512, 424);
+  if(impl_->p0table[2].allocate(512, 424))
+  {
+    std::cerr << "[OpenGLDepthPacketProcessor::loadP0TablesFromCommandResponse] Failed to allocate p0table[2]!" << std::endl;
+  }
   std::copy(reinterpret_cast<unsigned char*>(p0table->p0table2), reinterpret_cast<unsigned char*>(p0table->p0table2 + n), impl_->p0table[2].data);
   impl_->p0table[2].flipY();
-  impl_->p0table[2].upload();
+  if(!impl_->p0table[2].upload())
+  {
+    std::cerr << "[OpenGLDepthPacketProcessor::loadP0TablesFromCommandResponse] Failed to upload p0table[2]!" << std::endl;
+  }
 
 }
 
@@ -762,14 +876,20 @@ void OpenGLDepthPacketProcessor::loadXTableFromFile(const char* filename)
 {
   ChangeCurrentOpenGLContext ctx(*impl_->opengl_context_ptr);
 
-  impl_->x_table.allocate(512, 424);
+  if(!impl_->x_table.allocate(512, 424))
+  {
+    std::cerr << "[OpenGLDepthPacketProcessor::loadXTableFromFile] Failed to allocate x_table!" << std::endl;
+  }
   const unsigned char *data;
   size_t length;
 
   if(loadResource("xTable.bin", &data, &length))
   {
     std::copy(data, data + length, impl_->x_table.data);
-    impl_->x_table.upload();
+    if(!impl_->x_table.upload())
+    {
+      std::cerr << "[OpenGLDepthPacketProcessor::loadZTableFromFile] Failed to upload x_table!" << std::endl;
+    }
   }
   else
   {
@@ -781,7 +901,10 @@ void OpenGLDepthPacketProcessor::loadZTableFromFile(const char* filename)
 {
   ChangeCurrentOpenGLContext ctx(*impl_->opengl_context_ptr);
 
-  impl_->z_table.allocate(512, 424);
+  if(!impl_->z_table.allocate(512, 424))
+  {
+    std::cerr << "[OpenGLDepthPacketProcessor::loadZTableFromFile] Failed to allocate z_table!" << std::endl;
+  }
 
   const unsigned char *data;
   size_t length;
@@ -789,7 +912,10 @@ void OpenGLDepthPacketProcessor::loadZTableFromFile(const char* filename)
   if(loadResource("zTable.bin", &data, &length))
   {
     std::copy(data, data + length, impl_->z_table.data);
-    impl_->z_table.upload();
+    if(!impl_->z_table.upload())
+    {
+      std::cerr << "[OpenGLDepthPacketProcessor::loadZTableFromFile] Failed to upload z_table!" << std::endl;
+    }
   }
   else
   {
@@ -801,7 +927,10 @@ void OpenGLDepthPacketProcessor::load11To16LutFromFile(const char* filename)
 {
   ChangeCurrentOpenGLContext ctx(*impl_->opengl_context_ptr);
 
-  impl_->lut11to16.allocate(2048, 1);
+  if(!impl_->lut11to16.allocate(2048, 1))
+  {
+    std::cerr << "[OpenGLDepthPacketProcessor::load11To16LutFromFile] Failed to allocate lut11to16!" << std::endl;
+  }
 
   const unsigned char *data;
   size_t length;
@@ -809,7 +938,10 @@ void OpenGLDepthPacketProcessor::load11To16LutFromFile(const char* filename)
   if(loadResource("11to16.bin", &data, &length))
   {
     std::copy(data, data + length, impl_->lut11to16.data);
-    impl_->lut11to16.upload();
+    if(!impl_->lut11to16.upload())
+    {
+      std::cerr << "[OpenGLDepthPacketProcessor::load11To16LutFromFile] Failed to upload lut11to16!" << std::endl;
+    }
   }
   else
   {
@@ -827,7 +959,10 @@ void OpenGLDepthPacketProcessor::process(const DepthPacket &packet)
   impl_->opengl_context_ptr->makeCurrent();
 
   std::copy(packet.buffer, packet.buffer + packet.buffer_length, impl_->input_data.data);
-  impl_->input_data.upload();
+  if(!impl_->input_data.upload())
+  {
+    std::cerr << "[OpenGLDepthPacketProcessor::process] Uploading raw depth data to input_data texture failed!" << std::endl;
+  }
   impl_->run(has_listener ? &ir : 0, has_listener ? &depth : 0);
 
   if(impl_->do_debug) glfwSwapBuffers(impl_->opengl_context_ptr->glfw_ctx);
