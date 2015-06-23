@@ -34,6 +34,7 @@
 #include <libfreenect2/frame_listener_impl.h>
 #include <libfreenect2/threading.h>
 #include <libfreenect2/packet_pipeline.h>
+#include <libfreenect2/viewer.h>
 
 bool protonect_shutdown = false;
 
@@ -56,7 +57,7 @@ int main(int argc, char *argv[])
 
 
   libfreenect2::Freenect2 freenect2;
-  libfreenect2::Freenect2Device *dev = freenect2.openDefaultDevice(new libfreenect2::CpuPacketPipeline());
+  libfreenect2::Freenect2Device *dev = freenect2.openDefaultDevice();//new libfreenect2::CpuPacketPipeline());
 
   if(dev == 0)
   {
@@ -77,6 +78,8 @@ int main(int argc, char *argv[])
   std::cout << "device serial: " << dev->getSerialNumber() << std::endl;
   std::cout << "device firmware: " << dev->getFirmwareVersion() << std::endl;
 
+  libfreenect2::Viewer viewer("Protonect");
+
   while(!protonect_shutdown)
   {
     listener.waitForNewFrame(frames);
@@ -88,8 +91,10 @@ int main(int argc, char *argv[])
     //cv::imshow("ir", cv::Mat(ir->height, ir->width, CV_32FC1, ir->data) / 20000.0f);
     //cv::imshow("depth", cv::Mat(depth->height, depth->width, CV_32FC1, depth->data) / 4500.0f);
 
-    int key = 1;//cv::waitKey(1);
-    protonect_shutdown = protonect_shutdown || (key > 0 && ((key & 0xFF) == 27)); // shutdown on escape
+    viewer.show(libfreenect2::Frame::Color, *rgb, 1.0f);
+    viewer.show(libfreenect2::Frame::Ir, *ir, 1.0f / 20000.0f);
+    viewer.show(libfreenect2::Frame::Depth, *depth, 1.0f / 4500.0f);
+    protonect_shutdown = protonect_shutdown || !viewer.update();
 
     listener.release(frames);
     //libfreenect2::this_thread::sleep_for(libfreenect2::chrono::milliseconds(100));

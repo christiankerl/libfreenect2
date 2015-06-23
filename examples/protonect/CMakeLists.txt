@@ -85,6 +85,9 @@ SET(SOURCES
   src/usb_control.cpp
   src/command_transaction.cpp
   src/libfreenect2.cpp
+  
+  src/viewer.cpp
+  
   ${LIBFREENECT2_THREADING_SOURCE}
   ${RESOURCES_INC_FILE}
 )
@@ -121,6 +124,9 @@ IF(ENABLE_OPENGL)
     src/shader/filter2.fs
     src/shader/stage1.fs
     src/shader/stage2.fs
+    
+    src/shader/viewer_rgb.fs
+    src/shader/viewer_float.fs
   )
 ENDIF(ENABLE_OPENGL)
 
